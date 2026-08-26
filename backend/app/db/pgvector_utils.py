@@ -8,12 +8,13 @@ from langchain_community.document_loaders.base import BaseLoader
 from langchain_core.documents import Document
 from langchain_postgres import PGVector
 from loguru import logger
+from sqlalchemy import delete
 
 from app.config import settings
 
 embeddings = init_embeddings(
     model=settings.embeddings_model_name,
-    base_url=settings.embeddings_base_url,
+    base_url=settings.embeddings_base_url or None,
     provider=settings.model_provider,
     api_key=settings.api_key,
 )
@@ -104,3 +105,25 @@ async def delete_document_from_pgvector(document_ids: list[str]) -> None:
     logger.info(f"Attempting to delete {len(document_ids)} document chunks from PGVector.")
     await vector_store.adelete(ids=document_ids)
     logger.info(f"Successfully deleted {len(document_ids)} document chunks from PGVector.")
+
+
+async def delete_documents_by_metadata(filter: dict) -> None:
+    """Delete all document chunks matching a metadata filter, without embedding calls."""
+
+    logger.info(f"Deleting document chunks matching filter: {filter} from PGVector.")
+    await vector_store.__apost_init__()  # type: ignore[attr-defined]  # Lazy async init
+    async with vector_store._make_async_session() as session:  # type: ignore[attr-defined]
+        collection = await vector_store.aget_collection(session)
+        if not collection:
+            logger.warning("PGVector collection not found, nothing to delete.")
+            return
+
+        filter_by = [vector_store.EmbeddingStore.collection_id == collection.uuid]
+        filter_clause = vector_store._create_filter_clause(filter)  # type: ignore[attr-defined]
+        if filter_clause is not None:
+            filter_by.append(filter_clause)
+
+        stmt = delete(vector_store.EmbeddingStore).where(*filter_by)
+        result = await session.execute(stmt)
+        await session.commit()
+        logger.info(f"Deleted {result.rowcount} document chunks matching filter: {filter} from PGVector.")

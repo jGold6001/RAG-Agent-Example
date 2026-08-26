@@ -1,8 +1,9 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Request, status
+from fastapi import APIRouter, status
 
 from app.auth.dependencies import CurrentUserDep
+from app.db.checkpointer import get_checkpointer
 from app.db.main import SessionDep
 
 from . import service as thread_service
@@ -32,5 +33,6 @@ async def update_thread(thread_data: ThreadUpdate, thread_id: UUID, current_user
 
 
 @thread_router.delete("/{thread_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_thread(request: Request, thread_id: UUID, current_user: CurrentUserDep, session: SessionDep):
-    return await thread_service.delete_thread(thread_id, current_user.id, session, request.app.state.checkpointer)
+async def delete_thread(thread_id: UUID, current_user: CurrentUserDep, session: SessionDep):
+    checkpointer = await get_checkpointer()
+    return await thread_service.delete_thread(thread_id, current_user.id, session, checkpointer)
