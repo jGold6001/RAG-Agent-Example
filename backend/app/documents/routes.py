@@ -11,8 +11,8 @@ from app.db.main import SessionDep
 from app.db.pgvector_utils import (
     DOCUMENT_LOADER_MAPPING,
     delete_document_from_pgvector,
+    delete_documents_by_metadata,
     index_document_to_pgvector,
-    search_documents_in_pgvector,
 )
 
 from . import service as document_service
@@ -81,15 +81,9 @@ async def upload_document(thread_id: UUID, file: UploadFile, current_user: Curre
 @document_router.delete("/{document_id}", response_model=DocumentDeleteResponse)
 async def delete_document(document_id: UUID, current_user: CurrentUserDep, session: SessionDep):
     """Delete a document from the database and PGVector."""
-    chunk_message = ""
-    document_chunks = await search_documents_in_pgvector(filter={"document_id": str(document_id)})
-    if not document_chunks:
-        logger.warning(f"Document chunks related to document {document_id} not found in PGVector.")
-    else:
-        doc_ids_to_delete = [doc.metadata["id"] for doc in document_chunks]
-        await delete_document_from_pgvector(doc_ids_to_delete)
-        logger.info(f"Successfully delete all document chunks related to document_id: {document_id} from PGVector.")
-        chunk_message = "all its chunks from PGVector."
+    await delete_documents_by_metadata(filter={"document_id": str(document_id)})
+    logger.info(f"Successfully deleted all document chunks related to document_id: {document_id} from PGVector.")
+    chunk_message = "all its chunks from PGVector."
     await document_service.delete_document(document_id, session)
     logger.info(f"Successfully deleted document {document_id} from database.")
     message = f"Successfully deleted document {document_id} from database"

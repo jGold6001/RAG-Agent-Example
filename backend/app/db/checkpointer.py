@@ -1,25 +1,26 @@
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from loguru import logger
-from psycopg import AsyncConnection
 from psycopg.rows import dict_row
+from psycopg_pool import AsyncConnectionPool
 
 from app.config import settings
 
-connection: AsyncConnection | None = None
+pool: AsyncConnectionPool | None = None
 checkpointer: AsyncPostgresSaver | None = None
 
 
-async def create_connection() -> AsyncConnection:
-    global connection
+async def create_connection() -> AsyncConnectionPool:
+    global pool
 
-    if connection is not None:
-        return connection
+    if pool is not None:
+        return pool
 
-    logger.info("Creating checkpointer connection...")
+    logger.info("Creating checkpointer connection pool...")
     connection_kwargs = {"autocommit": True, "row_factory": dict_row}
-    connection = await AsyncConnection.connect(conninfo=settings.checkpointer_uri, **connection_kwargs)
-    logger.info("✅ Checkpointer connection created successfully")
-    return connection
+    pool = AsyncConnectionPool(conninfo=settings.checkpointer_uri, kwargs=connection_kwargs, open=False)
+    await pool.open()
+    logger.info("✅ Checkpointer connection pool created successfully")
+    return pool
 
 
 async def get_checkpointer() -> AsyncPostgresSaver:
@@ -28,18 +29,18 @@ async def get_checkpointer() -> AsyncPostgresSaver:
     if checkpointer is not None:
         return checkpointer
 
-    conn = await create_connection()
-    checkpointer = AsyncPostgresSaver(conn=conn)  # type: ignore
+    conn_pool = await create_connection()
+    checkpointer = AsyncPostgresSaver(conn=conn_pool)  # type: ignore
     await checkpointer.setup()
     logger.info("✅ PostgresCheckpointer initialized successfully")
     return checkpointer
 
 
 async def close_connection() -> None:
-    global connection
+    global pool
 
-    if connection is not None:
-        logger.info("Closing checkpointer connection...")
-        await connection.close()
-        logger.info("✅ Checkpointer connection closed successfully")
-        connection = None
+    if pool is not None:
+        logger.info("Closing checkpointer connection pool...")
+        await pool.close()
+        logger.info("✅ Checkpointer connection pool closed successfully")
+        pool = None
