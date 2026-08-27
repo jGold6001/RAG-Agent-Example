@@ -12,13 +12,16 @@ from .tools import tools
 def create_model(model_name: str, streaming: bool = False) -> BaseChatModel:
     """Create a retrieval chain based on the provided model name."""
 
-    model = init_chat_model(
-        model=model_name,
-        model_provider=settings.model_provider,
-        api_key=settings.api_key,
-        base_url=settings.model_base_url or None,
-        streaming=streaming,
-    )
+    kwargs: dict = {
+        "model": model_name,
+        "model_provider": settings.model_provider,
+        "base_url": settings.model_base_url or None,
+        "streaming": streaming,
+    }
+    if settings.api_key is not None:
+        kwargs["api_key"] = settings.api_key
+
+    model = init_chat_model(**kwargs)
 
     return model
 

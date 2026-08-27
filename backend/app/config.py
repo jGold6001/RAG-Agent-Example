@@ -25,7 +25,7 @@ logger.add(
 
 
 class Settings(BaseSettings):
-    api_key: SecretStr = Field(alias="OPENAI_API_KEY")
+    api_key: SecretStr | None = Field(default=None, alias="OPENAI_API_KEY")
     tavily_api_key: str
     model_provider: str
     model_names: list[str]

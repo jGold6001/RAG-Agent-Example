@@ -9,6 +9,9 @@ from streamlit.runtime.uploaded_file_manager import UploadedFile
 
 BASE_URL = settings.backend_base_url
 TIMEOUT = 30
+# Local LLM inference (e.g. Ollama) can take well over a minute for prompt processing
+# before the first streamed token arrives, so streaming calls need a much longer read timeout.
+STREAM_TIMEOUT = httpx.Timeout(connect=10.0, read=300.0, write=30.0, pool=30.0)
 
 ## Auth --------------------------------------------------------------------
 
@@ -96,7 +99,7 @@ async def simple_chat_stream(chat_data: dict):
     Yields:
         str: Text chunks from the stream
     """
-    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+    async with httpx.AsyncClient(timeout=STREAM_TIMEOUT) as client:
         try:
             async with client.stream("POST", f"{BASE_URL}/chat/", json=chat_data) as response:
                 response.raise_for_status()
@@ -108,7 +111,7 @@ async def simple_chat_stream(chat_data: dict):
                 f"Chat server responded with error: {e.response.status_code} {e.response.reason_phrase}"
             ) from e
         except httpx.RequestError as e:
-            raise Exception(f"Failed to connect to chat server: {str(e)}") from e
+            raise Exception(f"Failed to connect to chat server: {type(e).__name__}: {e}") from e
 
 
 async def chat_stream(chat_data: dict, thread_id: UUID):
@@ -125,7 +128,7 @@ async def chat_stream(chat_data: dict, thread_id: UUID):
     headers = {
         "Authorization": f"Bearer {st.session_state['user'].access_token}",
     }
-    async with httpx.AsyncClient(timeout=TIMEOUT, headers=headers) as client:
+    async with httpx.AsyncClient(timeout=STREAM_TIMEOUT, headers=headers) as client:
         try:
             async with client.stream("POST", f"{BASE_URL}/chat/{thread_id}", json=chat_data) as response:
                 response.raise_for_status()
@@ -137,7 +140,7 @@ async def chat_stream(chat_data: dict, thread_id: UUID):
                 f"Chat server responded with error: {e.response.status_code} {e.response.reason_phrase}"
             ) from e
         except httpx.RequestError as e:
-            raise Exception(f"Failed to connect to chat server: {str(e)}") from e
+            raise Exception(f"Failed to connect to chat server: {type(e).__name__}: {e}") from e
 
 
 def get_chat_history(thread_id: UUID) -> list | dict:
