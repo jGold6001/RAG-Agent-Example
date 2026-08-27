@@ -12,12 +12,15 @@ from sqlalchemy import delete
 
 from app.config import settings
 
-embeddings = init_embeddings(
-    model=settings.embeddings_model_name,
-    base_url=settings.embeddings_base_url or None,
-    provider=settings.model_provider,
-    api_key=settings.api_key,
-)
+_embeddings_kwargs: dict = {
+    "model": settings.embeddings_model_name,
+    "base_url": settings.embeddings_base_url or None,
+    "provider": settings.model_provider,
+}
+if settings.api_key is not None:
+    _embeddings_kwargs["api_key"] = settings.api_key
+
+embeddings = init_embeddings(**_embeddings_kwargs)
 
 
 vector_store = PGVector(

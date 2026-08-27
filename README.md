@@ -19,7 +19,7 @@ An agentic Retrieval-Augmented Generation (RAG) system built with **FastAPI** an
 - **Vector Store**: PostgreSQL + pgvector (via `langchain-postgres`)
 - **Checkpointer**: LangGraph Postgres Checkpointer (async)
 - **Frontend**: Streamlit
-- **LLM/Embeddings**: OpenAI-compatible models (configurable base URLs)
+- **LLM/Embeddings**: Ollama (self-hosted, runs in its own Docker container; configurable base URLs)
 
 ## 📋 Prerequisites
 
@@ -64,6 +64,14 @@ docker run --name langgraph_postgres -p 5432:5432 \
   -d pgvector/pgvector:pg16
 ```
 
+Ensure an Ollama instance is running, and pull the chat + embedding models. Example (Docker):
+```bash
+docker run --name langgraph_ollama -p 11434:11434 -d ollama/ollama:latest
+docker exec langgraph_ollama ollama pull llama3.2:1b
+docker exec langgraph_ollama ollama pull nomic-embed-text
+```
+Then set `MODEL_BASE_URL=http://127.0.0.1:11434` and `EMBEDDINGS_BASE_URL=http://127.0.0.1:11434` in your `.env` for local (non-Docker-Compose) runs.
+
 Run the API:
 ```bash
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 --reload-dir ./app
@@ -84,13 +92,13 @@ streamlit run gui/main.py
 
 Create a project-root `.env` (both backend and frontend read from it). Key settings:
 
-Core LLM settings:
-- `OPENAI_API_KEY`
-- `MODEL_PROVIDER` (e.g., `openai`)
-- `MODEL_NAMES` (JSON list, e.g., `["gpt-4o", "gpt-4o-mini"]`)
-- `MODEL_BASE_URL` (optional for OpenAI-compatible endpoints)
-- `EMBEDDINGS_MODEL_NAME` (e.g., `text-embedding-3-large`)
-- `EMBEDDINGS_BASE_URL` (optional)
+Core LLM settings (served by Ollama, running in its own container):
+- `MODEL_PROVIDER` (`ollama`)
+- `MODEL_NAMES` (JSON list, e.g., `["llama3.2:1b"]` — a small, fast model by default)
+- `MODEL_BASE_URL` (e.g., `http://ollama:11434` in Docker, `http://127.0.0.1:11434` for local dev)
+- `EMBEDDINGS_MODEL_NAME` (e.g., `nomic-embed-text`)
+- `EMBEDDINGS_BASE_URL` (same host as `MODEL_BASE_URL`)
+- `OLLAMA_PULL_MODELS` (space-separated model tags pulled automatically by the `ollama-pull` compose service)
 - `TAVILY_API_KEY` (for web search tool)
 
 Auth and tokens:

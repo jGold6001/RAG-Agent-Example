@@ -5,7 +5,7 @@ import api_utils
 import streamlit as st
 from config import settings
 
-MODEL_NAMES = settings.model_names or ["gpt-4o-mini"]
+MODEL_NAMES = settings.model_names or ["llama3.2:1b"]
 
 
 class Page(StrEnum):
