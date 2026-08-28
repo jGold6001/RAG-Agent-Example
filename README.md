@@ -38,12 +38,14 @@ An agentic Retrieval-Augmented Generation (RAG) system built with **FastAPI** an
    ```
 
 Services:
+- App (through nginx): `http://localhost/` — **use this URL**, not `:8501` directly
 - Backend API: `http://localhost:8000/api/v1`
 - API Docs: `http://localhost:8000/api/v1/docs`
-- Frontend UI: `http://localhost:8501`
+- Frontend UI (direct, debug only): `http://localhost:8501`
 
 Notes:
 - The `pgvector/pgvector:pg16` image includes the `vector` extension. If you use your own Postgres, ensure `CREATE EXTENSION IF NOT EXISTS vector;` is enabled.
+- Persistent login only works when the app is loaded through nginx at `http://localhost/`. The browser's login/refresh/logout calls use relative URLs (`/api/...`), which resolve against whatever origin the page was loaded from — loading the UI directly on `:8501` means those calls have nowhere same-origin to go. `AUTH_COOKIE_SECURE` defaults to `true` and must stay that way behind real HTTPS; set it to `false` in `.env` only for this local HTTP setup.
 
 ## 🧰 Local Development
 

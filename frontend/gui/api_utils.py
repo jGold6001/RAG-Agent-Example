@@ -50,42 +50,6 @@ def register_user(register_data: dict) -> dict:
         return {}
 
 
-def login_user(email: str, password: str) -> dict:
-    """
-    Logs in a user with the API.
-
-    Args:
-        email: The email of the user.
-        password: The password of the user.
-
-    Returns:
-        A dictionary containing the API response JSON if successful, or an empty dictionary otherwise.
-    """
-    headers = {
-        "Accept": "application/json",
-        "Content-Type": "application/x-www-form-urlencoded",
-    }
-    data = {"username": email, "password": password}
-
-    try:
-        response = requests.post(f"{BASE_URL}/auth/login", headers=headers, data=data, timeout=TIMEOUT)
-        response.raise_for_status()
-
-        logger.info("Successfully logged in user")
-        return response.json()
-    except requests.exceptions.HTTPError as e:
-        logger.error(f"Login user failed with status {e.response.status_code}. Response: {e.response.text}")
-        if e.response.status_code in [401, 403]:
-            return e.response.json()
-        return {}
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Login user failed with RequestError: {str(e)}")
-        return {}
-    except Exception as e:
-        logger.error(f"Login user failed with an unexpected exception: {str(e)}")
-        return {}
-
-
 ## Chat --------------------------------------------------------------------
 
 

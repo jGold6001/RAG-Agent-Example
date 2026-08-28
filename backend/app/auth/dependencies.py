@@ -42,16 +42,6 @@ class AccessTokenBearer(TokenBearer):
 AccessTokenBearerDep = Annotated[TokenData, Depends(AccessTokenBearer())]
 
 
-class RefreshTokenBearer(TokenBearer):
-    @staticmethod
-    def verify_token_type(is_refresh: bool) -> None:
-        if not is_refresh:
-            raise HTTPException(status_code=401, detail="Refresh token required")
-
-
-RefreshTokenBearerDep = Annotated[TokenData, Depends(RefreshTokenBearer())]
-
-
 async def get_current_user(token_data: AccessTokenBearerDep, session: SessionDep) -> User:
     user_email = token_data.user.email
     current_user = await user_service.get_user_by_email(user_email, session)

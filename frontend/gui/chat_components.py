@@ -4,7 +4,7 @@ import json
 import api_utils
 import streamlit as st
 from loguru import logger
-from state_management import new_chat, update_document_list, update_thread, update_user_threads
+from state_management import logout_user, new_chat, update_document_list, update_thread, update_user_threads
 
 
 def authenticated_user_chat_interface_component():
@@ -89,8 +89,15 @@ def authenticated_user_chat_interface_component():
                         st.session_state["thread"].messages.append({"role": "ai", "content": full_response})
 
                 except Exception as e:
-                    st.error("An error occurred while processing your request.")
                     logger.error(f"Error in fetch_stream: {e}")
+                    if "401" in str(e):
+                        # ensure_fresh_token() refreshes proactively before this
+                        # renders, so a 401 here means the session itself ended
+                        # (revoked/expired) rather than a routine expiry.
+                        st.error("Your session has ended. Please log in again.")
+                        logout_user()
+                        st.rerun()
+                    st.error("An error occurred while processing your request.")
                     if is_first_message:
                         api_utils.delete_thread(st.session_state["thread"].id)
                         logger.info(f"Thread {st.session_state['thread'].id} deleted")

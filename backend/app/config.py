@@ -37,6 +37,10 @@ class Settings(BaseSettings):
     jwt_algorithm: str
     access_token_expiry_mins: int
     refresh_token_expiry_days: int
+    auth_cookie_name: str = "rag_refresh"
+    auth_cookie_secure: bool = True
+    auth_cookie_samesite: str = "lax"
+    cors_allowed_origins: list[str] = ["http://localhost"]
     postgres_host: str
     postgres_port: int
     postgres_user: str

@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+</head>
+<body>
+<script>
+(function () {
+  "use strict";
+
+  // Hand-rolled Streamlit bidirectional-component protocol (no npm/React
+  // build): https://docs.streamlit.io/develop/concepts/custom-components
+  // Messages we must send: componentReady, setFrameHeight, setComponentValue.
+  // Message we must handle: render.
+
+  function postToStreamlit(type, extra) {
+    window.parent.postMessage(Object.assign({ isStreamlitMessage: true, type: type }, extra || {}), "*");
+  }
+
+  function setComponentValue(value) {
+    postToStreamlit("streamlit:setComponentValue", { value: value, dataType: "json" });
+  }
+
+  var ENDPOINTS = {
+    login: "/api/v1/auth/login",
+    refresh: "/api/v1/auth/refresh",
+    logout: "/api/v1/auth/logout",
+  };
+
+  async function runAction(action, payload) {
+    var url = ENDPOINTS[action];
+    if (!url) {
+      setComponentValue({ ok: false, status: 0, body: { detail: "Unknown auth action: " + action } });
+      return;
+    }
+
+    var response;
+    try {
+      if (action === "login") {
+        var form = new URLSearchParams();
+        form.set("username", (payload && payload.email) || "");
+        form.set("password", (payload && payload.password) || "");
+        response = await fetch(url, {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: form.toString(),
+        });
+      } else {
+        response = await fetch(url, { method: "POST", credentials: "include" });
+      }
+    } catch (err) {
+      setComponentValue({ ok: false, status: 0, body: { detail: String(err) } });
+      return;
+    }
+
+    var body = null;
+    try {
+      body = await response.json();
+    } catch (err) {
+      body = null;
+    }
+
+    setComponentValue({ ok: response.ok, status: response.status, body: body });
+  }
+
+  // Streamlit re-sends "streamlit:render" on every app rerun, not only when
+  // this component's own args change - guard against re-firing the same
+  // network call on unrelated reruns. The Python side is responsible for
+  // varying `key`/`payload` (e.g. a sequence number) whenever a *new* action
+  // should actually run.
+  var lastRenderSignature = null;
+
+  window.addEventListener("message", function (event) {
+    var data = event.data;
+    if (!data || data.type !== "streamlit:render") return;
+
+    var args = data.args || {};
+    var signature = JSON.stringify({ action: args.action, payload: args.payload, key: args.key });
+    if (signature === lastRenderSignature) return;
+    lastRenderSignature = signature;
+
+    runAction(args.action, args.payload || {});
+  });
+
+  postToStreamlit("streamlit:componentReady", { apiVersion: 1 });
+  postToStreamlit("streamlit:setFrameHeight", { height: 0 });
+})();
+</script>
+</body>
+</html>

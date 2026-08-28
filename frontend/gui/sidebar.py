@@ -1,5 +1,6 @@
 import api_utils
 import streamlit as st
+from auth_component import auth_bridge
 from config import settings
 from state_management import Page, change_thread, logout_user, new_chat, update_document_list, update_user_threads
 
@@ -94,5 +95,18 @@ def document_list_component():
 def logout_component():
     st.sidebar.subheader("❌ Logout", divider="rainbow")
     if st.sidebar.button("logout"):
+        st.session_state["pending_logout"] = True
+        st.session_state["logout_seq"] = st.session_state.get("logout_seq", 0) + 1
+
+    if st.session_state.get("pending_logout"):
+        with st.spinner("Logging out..."):
+            result = auth_bridge(action="logout", key=f"logout_{st.session_state['logout_seq']}")
+        if result is None:
+            st.stop()
+
+        if not result.get("ok"):
+            st.sidebar.warning("Could not reach the server to end the session; logging out locally.")
+
+        st.session_state["pending_logout"] = False
         logout_user()
         st.rerun()

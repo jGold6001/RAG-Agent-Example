@@ -1,11 +1,14 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Cookie, HTTPException, Request, Response, status
 
+from app.config import settings
 from app.db.main import SessionDep
 from app.users import service as user_service
 from app.users.schemas import UserCreate
 
-from .dependencies import AccessTokenBearerDep, OAuth2PasswordRequestFormDep, RefreshTokenBearerDep
-from .schemas import LoginResponse, LogoutResponse, RefreshTokenResponse, SignupResponse
+from . import session_service
+from .cookies import clear_refresh_cookie, set_refresh_cookie
+from .dependencies import OAuth2PasswordRequestFormDep
+from .schemas import LoginResponse, LogoutResponse, RefreshResponse, SignupResponse
 from .utils import create_jwt_token, verify_password
 
 auth_router = APIRouter()
@@ -19,7 +22,9 @@ async def create_user_Account(user_data: UserCreate, session: SessionDep):
 
 
 @auth_router.post("/login", response_model=LoginResponse)
-async def login_users(form_data: OAuth2PasswordRequestFormDep, session: SessionDep):
+async def login_users(
+    form_data: OAuth2PasswordRequestFormDep, request: Request, response: Response, session: SessionDep
+):
     email = form_data.username
     password = form_data.password
 
@@ -42,28 +47,48 @@ async def login_users(form_data: OAuth2PasswordRequestFormDep, session: SessionD
         refresh=False,
     )
 
-    refresh_token = create_jwt_token(
-        user_data={"email": user.email, "id": str(user.id)},
-        refresh=True,
-    )
+    credential = await session_service.create_session(user, session, user_agent=request.headers.get("user-agent"))
+    set_refresh_cookie(response, credential)
 
     return {
         "message": "Login successful",
         "access_token": access_token,
-        "refresh_token": refresh_token,
         "user": {"email": user.email, "id": str(user.id), "username": user.username},
     }
 
 
-@auth_router.get("/logout", response_model=LogoutResponse)
-async def revoke_token(token_data: AccessTokenBearerDep):
+@auth_router.post("/refresh", response_model=RefreshResponse)
+async def refresh_access_token(
+    response: Response,
+    session: SessionDep,
+    refresh_credential: str | None = Cookie(default=None, alias=settings.auth_cookie_name),
+):
+    if refresh_credential is None:
+        raise HTTPException(status_code=401, detail="Missing session")
+
+    user, new_credential = await session_service.rotate_session(refresh_credential, session)
+    set_refresh_cookie(response, new_credential)
+
+    access_token = create_jwt_token(
+        user_data={"email": user.email, "id": str(user.id)},
+        refresh=False,
+    )
+
+    return {
+        "access_token": access_token,
+        "user": {"email": user.email, "id": str(user.id), "username": user.username},
+    }
+
+
+@auth_router.post("/logout", response_model=LogoutResponse)
+async def logout_user(
+    response: Response,
+    session: SessionDep,
+    refresh_credential: str | None = Cookie(default=None, alias=settings.auth_cookie_name),
+):
+    if refresh_credential is not None:
+        await session_service.revoke_session(refresh_credential, session)
+
+    clear_refresh_cookie(response)
+
     return {"message": "Logged out successfully"}
-
-
-@auth_router.get("/refresh-token", response_model=RefreshTokenResponse)
-async def get_new_access_token(token_data: RefreshTokenBearerDep):
-    user = token_data.user
-    user_data = {"email": user.email, "id": str(user.id)}
-    new_access_token = create_jwt_token(user_data=user_data, refresh=False)
-
-    return {"access_token": new_access_token}
