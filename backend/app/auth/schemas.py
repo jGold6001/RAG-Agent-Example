@@ -14,16 +14,16 @@ class SignupResponse(BaseModel):
 class LoginResponse(BaseModel):
     message: str
     access_token: str
-    refresh_token: str
+    user: dict[str, str]
+
+
+class RefreshResponse(BaseModel):
+    access_token: str
     user: dict[str, str]
 
 
 class LogoutResponse(BaseModel):
     message: str
-
-
-class RefreshTokenResponse(BaseModel):
-    access_token: str
 
 
 class UserTokenData(BaseModel):

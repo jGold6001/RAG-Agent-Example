@@ -1,5 +1,6 @@
 import api_utils
 import streamlit as st
+from auth_component import auth_bridge
 from chat_components import authenticated_user_chat_interface_component, unauthenticated_user_chat_interface_component
 from state_management import Page, authenticate_user
 
@@ -35,15 +36,27 @@ def login_page():
     back_to_home_component()
 
     if submitted:
+        st.session_state["pending_login"] = {"email": email, "password": password}
+        st.session_state["login_seq"] = st.session_state.get("login_seq", 0) + 1
+
+    if pending_login := st.session_state.get("pending_login"):
         with st.spinner("Logging in..."):
-            login_response = api_utils.login_user(email, password)
-            if message := login_response.get("message"):
-                st.success(message)
-                st.session_state["page"] = Page.HOME
-                authenticate_user(login_response)
-                st.rerun()
-            else:
-                st.error(login_response.get("detail", "Registration failed. Please try again."))
+            # Login must happen as a browser fetch, not a server-side request:
+            # only the browser can receive/store the HttpOnly refresh cookie
+            # the backend sets on a successful login.
+            result = auth_bridge(action="login", payload=pending_login, key=f"login_{st.session_state['login_seq']}")
+        if result is None:
+            st.stop()
+
+        st.session_state["pending_login"] = None
+        body = result.get("body") or {}
+        if result.get("ok"):
+            st.success(body.get("message", "Login successful"))
+            st.session_state["page"] = Page.HOME
+            authenticate_user(body)
+            st.rerun()
+        else:
+            st.error(body.get("detail", "Login failed. Please try again."))
 
 
 def register_page():
